@@ -1,235 +1,242 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PRODUCTS } from '../constants';
 
+// Define the interface for Products component props
 interface ProductsProps {
-  onThemeColorChange?: (color: string) => void;
+  onThemeColorChange: (color: string) => void;
 }
 
-export const Products: React.FC<ProductsProps> = ({ onThemeColorChange }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
+// 内部组件：燃烧的辣椒图标
+const BurningChili: React.FC<{ delay: number }> = ({ delay }) => (
+  <div className="relative inline-block animate-[chili-burn_1.5s_ease-in-out_infinite]" style={{ animationDelay: `${delay}s` }}>
+    <svg 
+      viewBox="0 0 24 24" 
+      className="w-5 h-5 md:w-6 md:h-6 text-red-600 fill-current drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+      style={{ filter: 'drop-shadow(0 0 4px #ff4d4d)' }}
+    >
+      <path d="M14.5,3C14.5,3 13.5,3 12,5C10.5,7 9.5,9 9,11C8.5,13 8.5,15 9,17C9.5,19 11,21 13,21.5C15,22 17,21.5 18.5,20C20,18.5 20.5,16.5 20,14.5C19.5,12.5 18,10.5 16,9.5C14,8.5 14.5,3 14.5,3M12,14C11,14 10,13.5 10,12.5C10,11.5 11,11 12,11C13,11 14,11.5 14,12.5C14,13.5 13,14 12,14Z" />
+      <path d="M12,2C12,2 11,4 10,6" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+    {/* 火焰微光粒子 */}
+    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-orange-400 blur-sm rounded-full animate-[fire-particle_2s_linear_infinite]" style={{ animationDelay: `${delay + 0.5}s` }} />
+  </div>
+);
 
-  // 当 activeIndex 变化时通知父组件更新主题色
-  useEffect(() => {
-    if (onThemeColorChange) {
-      onThemeColorChange(PRODUCTS[activeIndex].color);
-    }
-  }, [activeIndex, onThemeColorChange]);
-
-  const handleScroll = () => {
-    if (!scrollRef.current) return;
-    const container = scrollRef.current;
-    const center = container.scrollLeft + container.offsetWidth / 2;
-    
-    let minDistance = Infinity;
-    let closestIndex = 0;
-
-    const children = container.children;
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i] as HTMLElement;
-      const childCenter = child.offsetLeft + child.offsetWidth / 2;
-      const distance = Math.abs(center - childCenter);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIndex = i;
-      }
-    }
-
-    if (closestIndex !== activeIndex) {
-      setActiveIndex(closestIndex);
-    }
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!scrollRef.current) return;
-    isDragging.current = true;
-    startX.current = e.pageX - scrollRef.current.offsetLeft;
-    scrollLeft.current = scrollRef.current.scrollLeft;
-    scrollRef.current.style.scrollSnapType = 'none'; 
-    scrollRef.current.style.scrollBehavior = 'auto'; 
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !scrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5; 
-    scrollRef.current.scrollLeft = scrollLeft.current - walk;
-  };
-
-  const handleMouseUp = () => {
-    if (!isDragging.current || !scrollRef.current) return;
-    isDragging.current = false;
-    scrollRef.current.style.scrollSnapType = 'x mandatory';
-    scrollRef.current.style.scrollBehavior = 'smooth';
-    handleScroll();
-  };
-
-  const scrollToCard = (index: number) => {
-    if (!scrollRef.current) return;
-    const target = scrollRef.current.children[index] as HTMLElement;
-    if (target) {
-      scrollRef.current.scrollTo({
-        left: target.offsetLeft - (scrollRef.current.offsetWidth / 2) + (target.offsetWidth / 2),
-        behavior: 'smooth'
-      });
-    }
-  };
-
-  const activeProduct = PRODUCTS[activeIndex];
+// 内部组件：单个 3D 卡片
+const ProductCard: React.FC<{
+  product: any;
+  index: number;
+  offset: number;
+  isActive: boolean;
+  onClick: () => void;
+}> = ({ product, index, offset, isActive, onClick }) => {
+  const diff = index - offset;
+  const scale = 1 - Math.min(Math.abs(diff) * 0.15, 0.4);
+  const translateX = diff * 110; 
+  const rotateY = diff * -25;
+  const opacity = 1 - Math.min(Math.abs(diff) * 0.5, 0.8);
+  const blur = Math.min(Math.abs(diff) * 4, 8);
+  const brightness = 1 - Math.min(Math.abs(diff) * 0.5, 0.7);
+  const zIndex = Math.round(100 - Math.abs(diff) * 20);
 
   return (
-    <div id="products" className="container mx-auto px-6 overflow-hidden select-none">
-      <div className="text-center mb-12 reveal">
-        <span className="text-red-600 font-bold uppercase tracking-widest text-sm">Visual Stage</span>
-        <h2 className="text-4xl md:text-6xl font-black mb-4 uppercase italic tracking-tighter">视觉主舞台</h2>
-        <p className="text-zinc-500 max-w-xl mx-auto text-sm md:text-base">
-          横向平铺展示，点击或拖动发现更多“爆辣”选择。
-        </p>
-      </div>
+    <div
+      onClick={onClick}
+      className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing transition-shadow duration-500"
+      style={{
+        width: '320px',
+        height: '480px',
+        zIndex,
+        transform: `translateX(${translateX}%) scale(${scale}) rotateY(${rotateY}deg)`,
+        opacity,
+        filter: `blur(${blur}px) brightness(${brightness})`,
+        willChange: 'transform, opacity, filter',
+        transformStyle: 'preserve-3d',
+        top: '0'
+      }}
+    >
+      <div className={`relative w-full h-full rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 group bg-zinc-900`}>
+        <img 
+          src={product.image} 
+          className="absolute inset-0 w-full h-full object-cover select-none" 
+          alt={product.name} 
+          draggable={false}
+        />
+        
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-transparent" />
 
-      <div className="relative">
-        {/* 产品信息区 - 动态颜色同步 */}
-        <div className="mb-10 h-40 md:h-52 flex flex-col items-center justify-center reveal">
-          <div className="text-center transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] transform" key={activeIndex}>
-            <div 
-              className="inline-block px-4 py-1 border text-[10px] font-bold uppercase tracking-[0.2em] rounded-full mb-4 animate-[fadeIn_0.4s] transition-colors duration-700"
-              style={{ borderColor: `${activeProduct.color}55`, color: activeProduct.color }}
-            >
-              Intensity Level 0{activeProduct.spicyLevel}
+        {/* 顶部标签 */}
+        <div className="absolute top-6 left-6">
+          <div className="bg-red-600 px-3 py-1 rounded-[4px] shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+            <span className="text-[10px] font-black text-white uppercase tracking-widest">PREMIUM</span>
+          </div>
+        </div>
+
+        {/* 底部信息 */}
+        <div className="absolute bottom-8 left-8 right-8">
+          {/* 辣度展示：燃烧的辣椒 */}
+          <div className="flex space-x-1 mb-3">
+            {Array.from({ length: product.spicyLevel }).map((_, i) => (
+              <BurningChili key={i} delay={i * 0.1} />
+            ))}
+          </div>
+          
+          <h4 className="text-3xl font-black text-white leading-tight uppercase mb-4 tracking-tighter italic">
+            {product.name}
+          </h4>
+          <div className="flex items-center space-x-3 opacity-60 group-hover:opacity-100 transition-opacity">
+            <div className="w-6 h-6 rounded-full border border-white/40 flex items-center justify-center bg-white/5">
+               <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+               </svg>
             </div>
-            <h3 
-              className="text-5xl md:text-8xl font-black italic uppercase tracking-tighter mb-2 animate-[slideUp_0.5s] transition-colors duration-700"
-              style={{ color: activeProduct.color }}
-            >
-              {activeProduct.name}
-            </h3>
-            <p className="text-base md:text-xl text-zinc-400 font-serif italic animate-[slideUp_0.7s]">
-              {activeProduct.tagline}
+            <span className="text-[10px] font-black text-white uppercase tracking-widest">Detail Lab</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const Products: React.FC<ProductsProps> = ({ onThemeColorChange }) => {
+  const [offset, setOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const requestRef = useRef<number>(null);
+  const targetOffsetRef = useRef(0);
+  const dragStartPos = useRef(0);
+  const dragStartOffset = useRef(0);
+  const lastMoveTime = useRef(0);
+  const lastMovePos = useRef(0);
+  const velocity = useRef(0);
+
+  const animate = useCallback(() => {
+    if (!isDragging) {
+      const diff = targetOffsetRef.current - offset;
+      if (Math.abs(diff) > 0.001) {
+        setOffset(prev => prev + diff * 0.1);
+      } else {
+        setOffset(targetOffsetRef.current);
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+        return;
+      }
+    }
+    requestRef.current = requestAnimationFrame(animate);
+  }, [isDragging, offset]);
+
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [animate]);
+
+  useEffect(() => {
+    const activeIndex = Math.round(offset);
+    const safeIndex = ((activeIndex % PRODUCTS.length) + PRODUCTS.length) % PRODUCTS.length;
+    if (onThemeColorChange) onThemeColorChange(PRODUCTS[safeIndex].color);
+  }, [offset, onThemeColorChange]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    dragStartPos.current = e.clientX;
+    dragStartOffset.current = offset;
+    lastMoveTime.current = Date.now();
+    lastMovePos.current = e.clientX;
+    velocity.current = 0;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const currentPos = e.clientX;
+    const delta = (currentPos - dragStartPos.current) / 400;
+    setOffset(dragStartOffset.current - delta);
+
+    const now = Date.now();
+    const dt = now - lastMoveTime.current;
+    if (dt > 0) {
+      velocity.current = (currentPos - lastMovePos.current) / dt;
+    }
+    lastMoveTime.current = now;
+    lastMovePos.current = currentPos;
+  };
+
+  const onPointerUp = () => {
+    setIsDragging(false);
+    const inertia = velocity.current * 15;
+    const finalOffset = offset - inertia;
+    targetOffsetRef.current = Math.round(Math.max(0, Math.min(PRODUCTS.length - 1, finalOffset)));
+  };
+
+  return (
+    <div 
+      className="relative min-h-screen py-24 flex flex-col justify-center overflow-hidden transition-colors duration-1000 select-none touch-none"
+      style={{ 
+        backgroundColor: `${PRODUCTS[Math.round(Math.max(0, Math.min(PRODUCTS.length - 1, offset)))].color}ee`,
+        perspective: '1200px'
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+    >
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/asfalt-dark.png')] opacity-20 pointer-events-none mix-blend-overlay" />
+
+      <div className="container mx-auto px-6 relative z-10 h-[640px]">
+        {/* 间隙已调小：mb-4 */}
+        <div className="mb-2 reveal text-center">
+           <span className="text-white/60 font-black text-[10px] uppercase tracking-[0.5em] block mb-2">Exclusive Preview</span>
+           <h2 className="text-5xl md:text-8xl font-black text-white italic tracking-tighter uppercase leading-none">
+             爆辣 <span className="opacity-40 italic">Series</span>
+           </h2>
+        </div>
+
+        {/* 3.D 轮播主舞台 */}
+        <div className="relative h-[480px] w-full transform-gpu">
+          {PRODUCTS.map((product, index) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              index={index}
+              offset={offset}
+              isActive={Math.round(offset) === index}
+              onClick={() => {
+                targetOffsetRef.current = index;
+              }}
+            />
+          ))}
+        </div>
+
+        {/* 指示器 */}
+        <div className="mt-8 flex justify-center space-x-3">
+          {PRODUCTS.map((_, i) => (
+            <div 
+              key={i}
+              className={`h-1 transition-all duration-500 rounded-full ${Math.round(offset) === i ? 'w-12 bg-white' : 'w-4 bg-white/20'}`}
+            />
+          ))}
+        </div>
+
+        <div className="mt-8 text-center max-w-2xl mx-auto reveal">
+            <p className="text-white/80 text-xl font-light italic leading-relaxed">
+              “{PRODUCTS[Math.round(Math.max(0, Math.min(PRODUCTS.length - 1, offset)))].description}”
             </p>
-          </div>
-        </div>
-
-        <div className="relative group">
-          <div 
-            ref={scrollRef}
-            onScroll={handleScroll}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            className="flex space-x-6 md:space-x-10 overflow-x-auto pb-16 pt-10 scrollbar-hide snap-x snap-mandatory cursor-grab active:cursor-grabbing px-[10vw] md:px-[20vw]"
-            style={{ scrollBehavior: 'smooth' }}
-          >
-            {PRODUCTS.map((product, index) => {
-              const isActive = activeIndex === index;
-              return (
-                <div
-                  key={product.id}
-                  onClick={() => scrollToCard(index)}
-                  className={`relative flex-shrink-0 w-72 md:w-96 h-[450px] md:h-[550px] snap-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                    isActive 
-                      ? 'scale-100 z-20 border-white/20' 
-                      : 'scale-90 opacity-40 z-10 border-transparent'
-                  } rounded-2xl overflow-hidden border backdrop-blur-sm group/card`}
-                  style={{ 
-                    boxShadow: isActive ? `0 40px 100px -20px ${product.color}66` : 'none'
-                  }}
-                >
-                  <img 
-                    src={product.image} 
-                    className={`absolute inset-0 w-full h-full object-cover transition-transform duration-[5s] ease-out ${isActive ? 'scale-110' : 'scale-100'}`} 
-                    alt={product.name} 
-                  />
-                  <div className={`absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent transition-opacity duration-700 ${isActive ? 'opacity-100' : 'opacity-60'}`} />
-                  
-                  <div className={`absolute bottom-8 left-8 right-8 transition-all duration-700 transform ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-50'}`}>
-                    <div className="flex items-center space-x-3 mb-2">
-                       <span 
-                         className="h-[2px] flex-1 transition-colors duration-700"
-                         style={{ backgroundColor: isActive ? product.color : '#3f3f46' }}
-                       ></span>
-                       <span 
-                        className="text-[10px] font-bold tracking-[0.3em] uppercase whitespace-nowrap transition-colors duration-700"
-                        style={{ color: isActive ? product.color : '#71717a' }}
-                       >
-                         SERIES 0{product.id}
-                       </span>
-                    </div>
-                    <h4 className="text-3xl font-black text-white uppercase italic tracking-tighter">{product.name}</h4>
-                  </div>
-
-                  <div className="absolute top-6 right-6 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                     <div 
-                        className="w-12 h-12 rounded-full border flex items-center justify-center font-bold text-xs backdrop-blur-md transition-colors"
-                        style={{ borderColor: product.color, color: product.color }}
-                     >
-                        {product.spicyLevel}🔥
-                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 动态进度条：颜色随产品变化 */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-64 h-1 bg-zinc-900 rounded-full overflow-hidden">
-             <div 
-                className="h-full transition-all duration-700 ease-out"
-                style={{ 
-                  width: `${((activeIndex + 1) / PRODUCTS.length) * 100}%`,
-                  backgroundColor: activeProduct.color,
-                  boxShadow: `0 0 15px ${activeProduct.color}`
-                }}
-             />
-          </div>
-
-          {/* 导航按钮：悬停颜色同步 */}
-          <button 
-            onClick={() => scrollToCard(Math.max(0, activeIndex - 1))}
-            style={{ '--hover-color': activeProduct.color } as any}
-            className="absolute top-1/2 left-8 md:left-20 -translate-y-1/2 w-14 h-14 rounded-full border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-[var(--hover-color)] hover:border-[var(--hover-color)] transition-all opacity-0 group-hover:opacity-100 z-30"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          </button>
-          <button 
-            onClick={() => scrollToCard(Math.min(PRODUCTS.length - 1, activeIndex + 1))}
-            style={{ '--hover-color': activeProduct.color } as any}
-            className="absolute top-1/2 right-8 md:right-20 -translate-y-1/2 w-14 h-14 rounded-full border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-[var(--hover-color)] hover:border-[var(--hover-color)] transition-all opacity-0 group-hover:opacity-100 z-30"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </div>
-
-        {/* 动态 CTA 按钮：悬停背景色变为产品主题色 */}
-        <div className="mt-20 flex justify-center reveal" style={{ transitionDelay: '0.2s' }}>
-           <button 
-            className="group relative px-12 py-5 bg-white text-black font-black uppercase tracking-widest text-sm rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-2xl"
-            style={{ boxShadow: `0 20px 40px -10px ${activeProduct.color}33` }}
-           >
-              <span className="relative z-10 transition-colors group-hover:text-white">立即选购 {activeProduct.name}</span>
-              <div 
-                className="absolute inset-0 translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]" 
-                style={{ backgroundColor: activeProduct.color }}
-              />
-           </button>
         </div>
       </div>
 
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(15px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes chili-burn {
+          0%, 100% { transform: scale(1) rotate(-2deg); filter: brightness(1); }
+          50% { transform: scale(1.1) rotate(3deg); filter: brightness(1.5) drop-shadow(0 0 12px #ff4d4d); }
         }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+        @keyframes fire-particle {
+          0% { transform: translate(-50%, 0) scale(1); opacity: 0; }
+          20% { opacity: 0.8; }
+          100% { transform: translate(-50%, -20px) scale(0); opacity: 0; }
+        }
+        .product-card {
+          user-select: none;
+          -webkit-user-drag: none;
         }
       `}</style>
     </div>
