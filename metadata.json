@@ -1,0 +1,7 @@
+{
+  "name": "SpicyLatiao - 创意手工辣条展示",
+  "description": "一个高品质、极具视觉冲击力的手工辣条品牌创意展示网站，结合动效与深度交互体验。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
